@@ -1,0 +1,8 @@
+## Downloaded automatically from components.espressif.com on the first build.
+## After a successful build, commit the generated dependencies.lock (project root)
+## so every future build uses exactly the same versions.
+dependencies:
+  idf: ">=5.4"
+  espressif/esp32-camera: "^2.1.0"
+  espressif/pedestrian_detect: "^0.3.2"
+  espressif/mdns: "^1.8.0"
