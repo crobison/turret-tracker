@@ -155,10 +155,11 @@ sudo apt remove modemmanager brltty          # both grab USB-serial ports and ca
 
 ### B2. Bench test (no camera needed)
 
-1. Open **Serial Monitor**. Set it to **9600 baud** and the line-ending dropdown to **Newline**.
-2. Wait for `HOMING`. Opening the monitor resets the Nano, so always open it *before* pressing 1.
-3. Press **1** on the remote. The turret nods and prints `TRACKING ON`.
-4. Type these commands. Each one is echoed as `CMD …`:
+1. **Turn the base's power switch on**, with its battery pack plugged in. USB alone lights up the Nano, but it can't power the servos properly. They'll hum and skip, and every B3 number will come out wrong.
+2. Open **Serial Monitor**. Set it to **9600 baud** and the line-ending dropdown to **Newline**.
+3. Wait for `HOMING`. Opening the monitor resets the Nano, so always open it *before* pressing 1.
+4. Press **1** on the remote. The turret nods and prints `TRACKING ON`.
+5. Type these commands. Each one is echoed as `CMD …`:
 
 | Type | Expected |
 |---|---|
@@ -170,16 +171,24 @@ sudo apt remove modemmanager brltty          # both grab USB-serial ports and ca
 
 ### B3. Find your turret's yaw numbers
 
-The tracker turns the base with short timed pulses at a reduced speed. Every turret's servo is a bit different, so measure yours. With tracking on:
+The tracker turns the base with short timed pulses at a reduced speed. Every tracking pulse starts with a short **kick-start**: a burst at full speed that breaks the base free of friction, after which it drops to the tracking speed. Without the kick, slow pulses often stall from a standstill. Every turret's servo is a bit different, so measure yours.
 
-1. **Speed.** Type `S90` then `Y+150`. That's full speed, the same as the remote arrows, so it should move. Step down with `S70`, `S55`, `S45`, `S40` and so on, sending `Y+100` after each. The lowest value that still moves it reliably is your **tracking speed**.
-   - `S` changes are temporary. They reset at power-off.
-2. **Minimum pulse.** At that speed, try `Y+15`, `Y+20`, `Y+30`, `Y+40`. The smallest one that visibly moves the base is your **minimum pulse** (ms).
-3. **Wire slack.** Send `Y+250` repeatedly and count the commands until the wires to the top start getting tight. Count × 250, minus a margin, is your **yaw soft limit**.
+Before you start: the base power switch is on (B2 step 1), the base is centred with the wires hanging neutral, and tracking is on. Put a bit of tape on the base so small moves are easy to see.
+
+1. **Speed and kick.** The sketch ships with `yawTrackSpeed = 40` and `yawKickMs = 50`. Send `Y-250` three times, then `Y+250` three times, a few seconds apart.
+   - All six move by a similar amount: keep these values.
+   - Some don't move, or each step is smaller than the last: raise the kick (`K60`) or the speed (`S45`), and repeat.
+   - Every step moves a long way: try a lower speed (`S35`) or a shorter kick (`K40`).
+   - Judge each direction on its own. Many yaw servos are noticeably stronger one way.
+   - `S` and `K` changes are temporary. They reset at power-off.
+2. **Minimum pulse.** Try `Y+100`/`Y-100`, then 60, then 50. Every pulse includes the full kick, so there's no point going below `yawKickMs`. The smallest pulse that moves the base **both ways** is your **minimum pulse** (ms). It's usually just the kick length.
+3. **Wire slack.** Send `Y+250` repeatedly and count the commands until the wires to the top start getting tight. Re-centre, press **1** twice, and do the same with `Y-250`.
+   - Use the side that took **fewer** commands. Count × 250, minus a margin, is your **yaw soft limit**.
+   - The Nano stops at the current limit with `yaw soft limit reached`. Press **1** twice to reset its count, and keep counting from where you were.
 
 Save the results:
 
-- In the sketch: `int yawTrackSpeed = <tracking speed>;` and `const long YAW_SOFT_LIMIT_MS = <soft limit>;`. Then re-upload (step B1).
+- In the sketch: `int yawTrackSpeed = <tracking speed>;`, `int yawKickMs = <kick>;` and `const long YAW_SOFT_LIMIT_MS = <soft limit>;`. Then re-upload (step B1).
 - In `esp32s3_tracker/main/tracker_config.h`, which you'll flash in Part C: `#define YAW_MIN_MS <minimum pulse>`.
 
 ---
@@ -411,7 +420,9 @@ Carry over any values you had already changed in the old `tracker_config.h` (fli
 | Arduino: `SOC_LEDC_TIMER_BIT_WIDE_NUM` / `esp32/ServoTimers.h` errors | The Board is still set to an ESP32. Set it to **Arduino Nano** |
 | Arduino: `avrdude: stk500_recv(): programmer is not responding` | Unplug the D0 wire. Try Processor → **Old Bootloader**. Check the port |
 | Serial Monitor commands do nothing | Set it to **9600** and **Newline**. Open the monitor, *then* press **1** (opening the monitor resets the Nano) |
-| `CMD Y+…` shows but the base doesn't move | Tracking speed is too low for your servo. Redo B3 |
+| `CMD Y+…` shows but the base doesn't move | First check that the base power switch is on. USB alone can't drive the servos. Then raise the kick (`K`) or the speed (`S`) and redo B3 |
+| Base hums but skips steps, or each step is smaller than the last | Base switch off, a loose servo plug, or the base rubbing on the leg bolts. Then raise `yawKickMs` |
+| Turret nods and shakes on one press of **1** | Old sketch. Re-upload; current versions ignore the remote's repeat signal |
 | `idf.py: command not found` | Run `get_idf` first (Part A2) |
 | `Could not open /dev/ttyUSB0 … busy` | Close Arduino Serial Monitor and other monitors. Run `sudo lsof /dev/ttyUSB0`. Remove `modemmanager`/`brltty` |
 | `Permission denied` on the port | Run `sudo usermod -aG dialout $USER`, then log out and back in |
@@ -434,10 +445,11 @@ Carry over any values you had already changed in the old `tracker_config.h` (fli
 
 | Command | Meaning | Nano-side limit |
 |---|---|---|
-| `Y+n` / `Y-n` | Yaw right/left for *n* ms at `yawTrackSpeed` | ±250 ms per command; ±`YAW_SOFT_LIMIT_MS` total |
+| `Y+n` / `Y-n` | Yaw right/left for *n* ms: the first `yawKickMs` at full speed, the rest at `yawTrackSpeed` | ±250 ms per command; ±`YAW_SOFT_LIMIT_MS` total |
 | `P+n` / `P-n` | Pitch up/down *n* degrees | ±15° per command; `pitchMin`..`pitchMax` |
 | `F` | Fire one dart | Only when armed; 3 s grace, 1.5 s cooldown, 6 shots |
 | `Sn` (e.g. `S45`) | Set `yawTrackSpeed` live (10–90), for tuning | Accepted even with tracking off; not saved |
+| `Kn` (e.g. `K50`) | Set `yawKickMs` live (0–60), for tuning | Accepted even with tracking off; not saved |
 
 `Y`, `P` and `F` are ignored unless tracking is on (remote **1**). Every command is echoed in Serial Monitor.
 

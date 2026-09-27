@@ -35,6 +35,7 @@
 *     P+3    pitch UP 3 degrees       P-3    pitch DOWN 3 degrees (max 15)
 *     F      request one auto-shot (only honored when auto-fire is ARMED)
 *     S45    set yawTrackSpeed to 45 on the fly (tuning helper, 10..90, not saved)
+*     K20    set the yaw kick-start to 20 ms on the fly (tuning helper, 0..60, not saved)
 *
 *  Every command is echoed in Serial Monitor ("CMD Y+60", or "IGNORED ..."
 *  if tracking is off), so you can see whether it arrived.
@@ -112,12 +113,15 @@ int pitchMin = 10;
 //////////////////////////////////////////////////
        //  TRACKING PARAMETERS (NEW)  //
 //////////////////////////////////////////////////
-int yawTrackSpeed = 50;                     // slower than manual (90) so small corrections are precise.
+int yawTrackSpeed = 40;                     // slower than manual (90) so small corrections are precise.
                                             // Find the right value for YOUR turret with the S command
                                             // in Serial Monitor (see README, Part B), then put it here.
+int yawKickMs = 50;                         // each tracking yaw pulse starts with this many ms at full
+                                            // speed to break the base free of static friction, then
+                                            // drops to yawTrackSpeed. 0 = no kick. Tune with K.
 const int  YAW_PULSE_MAX_MS = 250;          // longest single yaw pulse accepted from the camera
 const int  PITCH_STEP_MAX = 15;             // biggest single pitch step accepted from the camera
-const long YAW_SOFT_LIMIT_MS = 2500;        // net yaw travel allowed either side of where tracking was
+const long YAW_SOFT_LIMIT_MS = 1800;        // net yaw travel allowed either side of where tracking was
                                             // switched on (in ms at yawTrackSpeed). Stops the turret
                                             // winding its wires around the base. Tune after testing.
 const unsigned long AUTO_FIRE_COOLDOWN_MS = 1500; // minimum time between auto shots
@@ -297,6 +301,14 @@ void handleSerialCommand(const char *cmd) {
         return;
     }
 
+    // Tuning helper: "K20" sets yawKickMs live (0..60). Not saved: resets on power-up.
+    if (op == 'K') {
+        yawKickMs = constrain(val, 0, 60);
+        Serial.print(F("yawKickMs = "));
+        Serial.println(yawKickMs);
+        return;
+    }
+
     if (!trackingEnabled) {
         Serial.print(F("IGNORED (tracking off, press 1): "));
         Serial.println(cmd);
@@ -323,12 +335,18 @@ void trackYaw(int ms) {
         return;
     }
 
-    if (ms > 0) {
-        yawServo.write(yawStopSpeed - yawTrackSpeed); // right (clockwise), matches rightMove()
-    } else {
-        yawServo.write(yawStopSpeed + yawTrackSpeed); // left (counterclockwise), matches leftMove()
+    // Right (clockwise) is below yawStopSpeed and left is above, matching rightMove() / leftMove().
+    int dir = (ms > 0) ? -1 : 1;
+    int total = abs(ms);
+    int kick = min(yawKickMs, total);
+    if (kick > 0) {
+        yawServo.write(yawStopSpeed + dir * yawMoveSpeed); // full-speed burst to get it moving
+        delay(kick);
     }
-    delay(abs(ms));
+    if (total > kick) {
+        yawServo.write(yawStopSpeed + dir * yawTrackSpeed);
+        delay(total - kick);
+    }
     yawServo.write(yawStopSpeed);
     yawOdometerMs = next;
 }
