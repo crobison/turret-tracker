@@ -110,6 +110,11 @@ int rollPrecision = 158;  // ms of barrel spin per dart (~1/6 turn). Tune 150-17
 int pitchMax = 175;       // pitch limits - keep inside 0..180 so the servo never crashes
 int pitchMin = 10;
 
+// Stock turrets tilt UP as the pitch servo value goes DOWN. Set true if yours tilts the other
+// way (remote down arrow raises the barrel, "P+5" lowers it). Fixes the remote and the camera.
+const bool PITCH_REVERSED = false;
+const int  PITCH_UP_STEP = PITCH_REVERSED ? 1 : -1;  // servo value change per degree of "up"
+
 //////////////////////////////////////////////////
        //  TRACKING PARAMETERS (NEW)  //
 //////////////////////////////////////////////////
@@ -351,11 +356,11 @@ void trackYaw(int ms) {
     yawOdometerMs = next;
 }
 
-// Positive deg = aim UP. In this turret a smaller servo angle is "up" (see upMove()).
+// Positive deg = aim UP. PITCH_REVERSED sets which way that turns the servo (see upMove()).
 void trackPitch(int deg) {
     deg = constrain(deg, -PITCH_STEP_MAX, PITCH_STEP_MAX);
     if (deg == 0) return;
-    pitchServoVal = constrain(pitchServoVal - deg, pitchMin, pitchMax);
+    pitchServoVal = constrain(pitchServoVal + PITCH_UP_STEP * deg, pitchMin, pitchMax);
     pitchServo.write(pitchServoVal);
 }
 
@@ -498,8 +503,9 @@ void rightMove(int moves){
 
 void upMove(int moves){
   for (int i = 0; i < moves; i++){
-      if(pitchServoVal > pitchMin){
-        pitchServoVal = pitchServoVal - pitchMoveSpeed;
+      int next = pitchServoVal + PITCH_UP_STEP * pitchMoveSpeed;
+      if(next >= pitchMin && next <= pitchMax){
+        pitchServoVal = next;
         pitchServo.write(pitchServoVal);
         delay(50);
         Serial.println("UP");
@@ -509,8 +515,9 @@ void upMove(int moves){
 
 void downMove (int moves){
   for (int i = 0; i < moves; i++){
-        if(pitchServoVal < pitchMax){
-        pitchServoVal = pitchServoVal + pitchMoveSpeed;
+        int next = pitchServoVal - PITCH_UP_STEP * pitchMoveSpeed;
+        if(next >= pitchMin && next <= pitchMax){
+        pitchServoVal = next;
         pitchServo.write(pitchServoVal);
         delay(50);
         Serial.println("DOWN");

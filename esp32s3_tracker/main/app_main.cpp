@@ -281,8 +281,12 @@ static void tracker_task(void *)
         }
 
         // Pitch: degrees proportional to vertical error. + = aim up (target above aim point).
+        // If the box is cut off at the top or bottom of the frame, ty no longer moves when the
+        // barrel tilts (a full-height box always gives the same ty), so pitch would run away to
+        // its limit. Hold pitch until the whole person is back in view.
+        bool box_clipped_y = tgt.y1 <= 2 || tgt.y2 >= (int)fb->height - 3;
         int pitch_deg = 0;
-        if (abs(ey) > DEADBAND_Y_PX) {
+        if (abs(ey) > DEADBAND_Y_PX && !box_clipped_y) {
             int mag = clampi((int)lroundf(PITCH_GAIN_DEG_PER_PX * (float)abs(ey)), 1, PITCH_MAX_DEG);
             pitch_deg = (ey < 0 ? mag : -mag) * (PITCH_INVERT ? -1 : 1);
         }

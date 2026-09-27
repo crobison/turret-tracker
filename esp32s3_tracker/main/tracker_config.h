@@ -63,7 +63,7 @@
 #define AIM_Y   120
 
 // ---------- Control loop ----------
-#define DEADBAND_X_PX           10      // "close enough" horizontally
+#define DEADBAND_X_PX           20      // "close enough" horizontally
 #define DEADBAND_Y_PX           10      // "close enough" vertically
 
 #define YAW_GAIN_MS_PER_PX      0.40f   // yaw pulse length per pixel of error
@@ -82,7 +82,7 @@
 
 // Set to 0 to run detection + logging only, with no commands sent to the Nano.
 // Useful for the first bring-up.
-#define SEND_COMMANDS           0       // START AT 0. Set to 1 once the direction checks pass (guide step 8).
+#define SEND_COMMANDS           1       // START AT 0. Set to 1 once the direction checks pass (guide step 8).
 
 // ---------- Live view (Wi-Fi) ----------
 // Web page with the camera stream and detection boxes:
