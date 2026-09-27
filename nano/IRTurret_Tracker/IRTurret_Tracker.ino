@@ -112,7 +112,7 @@ int pitchMin = 10;
 //////////////////////////////////////////////////
        //  TRACKING PARAMETERS (NEW)  //
 //////////////////////////////////////////////////
-int yawTrackSpeed = 30;                     // slower than manual (90) so small corrections are precise.
+int yawTrackSpeed = 50;                     // slower than manual (90) so small corrections are precise.
                                             // Find the right value for YOUR turret with the S command
                                             // in Serial Monitor (see README, Part B), then put it here.
 const int  YAW_PULSE_MAX_MS = 250;          // longest single yaw pulse accepted from the camera
@@ -130,6 +130,8 @@ int  autoShotsLeft = 0;
 unsigned long armedAtMs = 0;
 unsigned long lastAutoShotMs = 0;
 long yawOdometerMs = 0;                     // + = net right, - = net left, since tracking enabled
+const unsigned long TOGGLE_LOCKOUT_MS = 600; // ignore 1 / # for this long after a toggle finishes
+unsigned long lastToggleMs = 0;
 
 char cmdBuf[16];
 uint8_t cmdLen = 0;
@@ -154,6 +156,7 @@ void autoFire();
 void toggleTracking();
 void toggleAutoFire();
 void flushSerialInput();
+bool toggleKeyAccepted();
 
 //////////////////////////////////////////////////
               //  S E T U P  //
@@ -238,11 +241,17 @@ void loop() {
               break;
 
             case cmd1: // NEW: tracking on/off
-              toggleTracking();
+              if (toggleKeyAccepted()) {
+                toggleTracking();
+                lastToggleMs = millis();
+              }
               break;
 
             case hashtag: // NEW: auto-fire arm/disarm
-              toggleAutoFire();
+              if (toggleKeyAccepted()) {
+                toggleAutoFire();
+                lastToggleMs = millis();
+              }
               break;
         }
     }
@@ -350,6 +359,14 @@ void autoFire() {
         Serial.println(F("AUTO-FIRE: barrel empty, disarmed"));
         shakeHeadNo(1);
     }
+}
+
+// On/off keys must act once per press. The remote sends "repeat" frames while a key is held
+// (and sometimes a second full frame right after the first), which would toggle straight back.
+bool toggleKeyAccepted() {
+    if (IrReceiver.decodedIRData.flags & IRDATA_FLAGS_IS_REPEAT) return false;
+    if (millis() - lastToggleMs < TOGGLE_LOCKOUT_MS) return false;
+    return true;
 }
 
 void toggleTracking() {

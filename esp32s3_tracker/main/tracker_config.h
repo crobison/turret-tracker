@@ -67,7 +67,7 @@
 #define DEADBAND_Y_PX           10      // "close enough" vertically
 
 #define YAW_GAIN_MS_PER_PX      0.40f   // yaw pulse length per pixel of error
-#define YAW_MIN_MS              20      // shortest pulse that actually moves the base
+#define YAW_MIN_MS              25      // shortest pulse that actually moves the base
 #define YAW_MAX_MS              150     // cap per step (Nano also caps at 250)
 #define YAW_INVERT              0       // set 1 if the turret turns AWAY from the target
 
